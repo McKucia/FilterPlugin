@@ -12,7 +12,7 @@ enum ChainPositions {
     LowCut,
     Peak,
     HighCut
-};
+}; 
 
 enum Slope {
     Slope_12,
@@ -27,7 +27,12 @@ struct ChainSettings {
     Slope lowCutSlope { Slope::Slope_12 }, highCutSlope { Slope::Slope_12 };
 };
 
+
+using Coefficients = Filter::CoefficientsPtr;
+
+void updateCoefficients(Coefficients& old, const Coefficients& replacements);
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
+Coefficients makePeakFilter(const ChainSettings& chainSettings, double sampleRate);
 
 class FilterPluginAudioProcessor  : public juce::AudioProcessor
 {
@@ -64,19 +69,14 @@ public:
 private:
     MonoChain leftChain, rightChain;
     
-    void updatePeakFilter(const ChainSettings& chainSettings);
-    using Coefficients = Filter::CoefficientsPtr;
-    
-    static void updateCoefficients(Coefficients& old, const Coefficients& replacements);
-    
-    template<int Index,typename ChainType, typename CoefficientType>
-    void update(ChainType& chain, const CoefficientType& cutCoefficients);
-    
     template<typename ChainType, typename CoefficientType>
     void updateCutFilter(ChainType& leftLowCut,
                          const CoefficientType& cutCoefficients,
                          const Slope& lowCutSlope);
     
+    template<int Index,typename ChainType, typename CoefficientType>
+    void update(ChainType& chain, const CoefficientType& cutCoefficients);
+    void updatePeakFilter(const ChainSettings& chainSettings);
     void updateLowCutFilters(const ChainSettings& chainSettings);
     void updateHighCutFilters(const ChainSettings& chainSettings);
     void updateFilters();

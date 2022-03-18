@@ -179,12 +179,15 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts) {
     return settings;
 }
 
-void FilterPluginAudioProcessor::updatePeakFilter(const ChainSettings& chainSettings) {
+void updateCoefficients(Coefficients& old, const Coefficients& replacements) {
+    *old = *replacements;
+}
+
+template<int Index,typename ChainType, typename CoefficientType>
+void FilterPluginAudioProcessor::update(ChainType& chain, const CoefficientType& coefficients) {
     
-    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(), chainSettings.peakFreq, chainSettings.peakQuality, juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
-    
-    updateCoefficients(leftChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
-    updateCoefficients(rightChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
+    updateCoefficients(chain.template get<Index>().coefficients, coefficients[Index]);
+    chain.template setBypassed<Index>(false);
 }
 
 template<typename ChainType, typename CoefficientType>
@@ -217,17 +220,6 @@ void FilterPluginAudioProcessor::updateCutFilter(ChainType& leftLowCut,
     }
 }
 
-void FilterPluginAudioProcessor::updateCoefficients(Coefficients& old, const Coefficients& replacements) {
-    *old = *replacements;
-}
-
-template<int Index,typename ChainType, typename CoefficientType>
-void FilterPluginAudioProcessor::update(ChainType& chain, const CoefficientType& coefficients) {
-    
-    updateCoefficients(chain.template get<Index>().coefficients, coefficients[Index]);
-    chain.template setBypassed<Index>(false);
-}
-
 void FilterPluginAudioProcessor::updateLowCutFilters(const ChainSettings &chainSettings) {
     
     auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
@@ -252,6 +244,18 @@ void FilterPluginAudioProcessor::updateHighCutFilters(const ChainSettings &chain
     
     updateCutFilter(leftHighCut, highCutCoefficients, chainSettings.highCutSlope);
     updateCutFilter(rightHighCut, highCutCoefficients, chainSettings.highCutSlope);
+}
+
+Coefficients makePeakFilter(const ChainSettings& chainSettings, double sampleRate) {
+    return juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peakFreq, chainSettings.peakQuality, juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
+}
+
+void FilterPluginAudioProcessor::updatePeakFilter(const ChainSettings& chainSettings) {
+    
+    auto peakCoefficients = makePeakFilter(chainSettings, getSampleRate());
+    
+    updateCoefficients(leftChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
+    updateCoefficients(rightChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
 }
 
 void FilterPluginAudioProcessor::updateFilters() {

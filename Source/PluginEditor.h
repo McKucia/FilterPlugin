@@ -11,16 +11,25 @@ struct CustomRotarySlider : juce::Slider
     }
 };
 
-class FilterPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
+class FilterPluginAudioProcessorEditor  : public juce::AudioProcessorEditor,
+juce::AudioProcessorParameter::Listener,
+juce::Timer
 {
 public:
     FilterPluginAudioProcessorEditor (FilterPluginAudioProcessor&);
     ~FilterPluginAudioProcessorEditor() override;
     void paint (juce::Graphics&) override;
     void resized() override;
+    
+    //Listener
+    void parameterValueChanged (int parameterIndex, float newValue) override;
+    void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override { };
+    void timerCallback() override;
 
 private:
     FilterPluginAudioProcessor& audioProcessor;
+    
+    juce::Atomic<bool> parametersChanged { false };
     
     CustomRotarySlider peakFreqSlider,
     peakGainSlider,

@@ -26,6 +26,31 @@ void FilterPluginAudioProcessorEditor::paint (juce::Graphics& g)
 {
     using namespace juce;
     g.fillAll (Colours::black);
+    
+    auto bounds = getLocalBounds();
+    auto responseArea = bounds.removeFromTop(bounds.getHeight() * 0.33);
+    
+    auto w = responseArea.getWidth();
+    
+    auto& lowCut = monoChain.get<ChainPositions::LowCut>();
+    auto& peak = monoChain.get<ChainPositions::Peak>();
+    auto& highCut = monoChain.get<ChainPositions::HighCut>();
+    
+    std::vector<float> mags;
+    mags.resize(w);
+    auto sampleRate = audioProcessor.getSampleRate();
+    
+    //w - szerokosc obszaru na której będzie linia
+    for(int i = 0; i < w; i++) {
+        double mag = 1.0f;
+        //zamieniamy szerokosc obszaru w 1/100 na czestotliwosci
+        auto freq = mapToLog10((double)i / (double)w, 20.0, 20000.0);
+        
+        if(!monoChain.isBypassed<ChainPositions::Peak>()) {
+            mag *= peak.coefficients->getMagnitudeForFrequency(freq, sampleRate);
+            std::cout << mag << std::endl;
+        }
+    }
 
     g.setColour (juce::Colours::white);
 }
