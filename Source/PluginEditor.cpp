@@ -1,40 +1,50 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-FilterPluginAudioProcessorEditor::FilterPluginAudioProcessorEditor (FilterPluginAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p),
-    peakFreqSliderAttachment(audioProcessor.apvts, "Peak Freq", peakFreqSlider),
-    peakGainSliderAttachment(audioProcessor.apvts, "Peak Gain", peakGainSlider),
-    peakQualitySliderAttachment(audioProcessor.apvts, "Peak Quality", peakQualitySlider),
-    lowCutFreqSliderAttachment(audioProcessor.apvts, "LowCut Freq", lowCutFreqSlider),
-    highCutFreqSliderAttachment(audioProcessor.apvts, "HighCut Freq", highCutFreqSlider),
-    lowCutSlopeSliderAttachment(audioProcessor.apvts, "LowCut Slope", lowCutSlopeSlider),
-    highCutSlopeSliderAttachment(audioProcessor.apvts, "HighCut Slope", highCutSlopeSlider)
+
+ResponsiveCurveComponent::ResponsiveCurveComponent(FilterPluginAudioProcessor& p) : audioProcessor(p)
 {
-    for(auto* comp : getComps()) {
-        addAndMakeVisible(comp);
-    }
-    
     const auto& params = audioProcessor.getParameters();
     for(const auto& param : params) {
         param->addListener(this);
     }
     startTimerHz(60);
-    
-    setSize (600, 400);
 }
 
-FilterPluginAudioProcessorEditor::~FilterPluginAudioProcessorEditor()
+ResponsiveCurveComponent::~ResponsiveCurveComponent()
 {
+    const auto& params = audioProcessor.getParameters();
+    for(const auto& param : params) {
+        param->removeListener(this);
+    }
 }
 
-void FilterPluginAudioProcessorEditor::paint (juce::Graphics& g)
+void ResponsiveCurveComponent::parameterValueChanged (int parameterIndex, float newValue) {
+    parametersChanged.set(true);
+}
+
+void ResponsiveCurveComponent::timerCallback() {
+    if(parametersChanged.compareAndSetBool(false, true)) {
+        //aktualizacja monochain
+        auto chainSettings = getChainSettings(audioProcessor.apvts);
+        auto peakCoefficients = makePeakFilter(chainSettings, audioProcessor.getSampleRate());
+        updateCoefficients(monoChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
+        
+        auto lowCutCoefficients = makeLowCutFilter(chainSettings, audioProcessor.getSampleRate());
+        auto highCutCoefficients = makeHighCutFilter(chainSettings, audioProcessor.getSampleRate());
+        updateCutFilter(monoChain.get<ChainPositions::LowCut>(), lowCutCoefficients, chainSettings.lowCutSlope);
+        updateCutFilter(monoChain.get<ChainPositions::HighCut>(), highCutCoefficients, chainSettings.highCutSlope);
+        
+        repaint();
+    }
+}
+
+void ResponsiveCurveComponent::paint(juce::Graphics &g)
 {
     using namespace juce;
     g.fillAll (Colours::black);
     
-    auto bounds = getLocalBounds();
-    auto responseArea = bounds.removeFromTop(bounds.getHeight() * 0.33);
+    auto responseArea = getLocalBounds();
     
     auto w = responseArea.getWidth();
     
@@ -96,14 +106,46 @@ void FilterPluginAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour(Colours::white);
     g.strokePath(responseCurve, PathStrokeType(2.0f));
     
-
     g.setColour (juce::Colours::white);
+}
+
+FilterPluginAudioProcessorEditor::FilterPluginAudioProcessorEditor (FilterPluginAudioProcessor& p)
+    : AudioProcessorEditor (&p), audioProcessor (p),
+    responsiveCurveComponent(audioProcessor),
+    peakFreqSliderAttachment(audioProcessor.apvts, "Peak Freq", peakFreqSlider),
+    peakGainSliderAttachment(audioProcessor.apvts, "Peak Gain", peakGainSlider),
+    peakQualitySliderAttachment(audioProcessor.apvts, "Peak Quality", peakQualitySlider),
+    lowCutFreqSliderAttachment(audioProcessor.apvts, "LowCut Freq", lowCutFreqSlider),
+    highCutFreqSliderAttachment(audioProcessor.apvts, "HighCut Freq", highCutFreqSlider),
+    lowCutSlopeSliderAttachment(audioProcessor.apvts, "LowCut Slope", lowCutSlopeSlider),
+    highCutSlopeSliderAttachment(audioProcessor.apvts, "HighCut Slope", highCutSlopeSlider)
+{
+    for(auto* comp : getComps()) {
+        addAndMakeVisible(comp);
+    }
+    
+    setSize (600, 400);
+}
+
+FilterPluginAudioProcessorEditor::~FilterPluginAudioProcessorEditor()
+{
+}
+
+void FilterPluginAudioProcessorEditor::paint (juce::Graphics& g)
+{
+    using namespace juce;
+    g.fillAll (Colours::black);
+    
+    auto bounds = getLocalBounds();
+    auto responseArea = bounds.removeFromTop(bounds.getHeight() * 0.33);
 }
 
 void FilterPluginAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
     auto responseArea = bounds.removeFromTop(bounds.getHeight() * 0.33);
+    
+    responsiveCurveComponent.setBounds(responseArea);
     
     auto lowCutArea = bounds.removeFromLeft(bounds.getWidth() * 0.33);
     auto rightCutArea = bounds.removeFromRight(bounds.getWidth() * 0.5);
@@ -119,21 +161,6 @@ void FilterPluginAudioProcessorEditor::resized()
     peakQualitySlider.setBounds(bounds);
 }
 
-void FilterPluginAudioProcessorEditor::parameterValueChanged (int parameterIndex, float newValue) {
-    parametersChanged.set(true);
-}
-
-void FilterPluginAudioProcessorEditor::timerCallback() {
-    if(parametersChanged.compareAndSetBool(false, true)) {
-        //aktualizacja monochain
-        auto chainSettings = getChainSettings(audioProcessor.apvts);
-        auto peakCoefficients = makePeakFilter(chainSettings, audioProcessor.getSampleRate());
-        updateCoefficients(monoChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
-        
-        repaint();
-    }
-}
-
 std::vector<juce::Component*> FilterPluginAudioProcessorEditor::getComps()
 {
     return {
@@ -143,7 +170,8 @@ std::vector<juce::Component*> FilterPluginAudioProcessorEditor::getComps()
         &lowCutFreqSlider,
         &highCutFreqSlider,
         &lowCutSlopeSlider,
-        &highCutSlopeSlider
+        &highCutSlopeSlider,
+        &responsiveCurveComponent
     };
 }
 

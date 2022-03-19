@@ -34,6 +34,27 @@ void updateCoefficients(Coefficients& old, const Coefficients& replacements);
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
 Coefficients makePeakFilter(const ChainSettings& chainSettings, double sampleRate);
 
+
+inline auto makeLowCutFilter(const ChainSettings& chainSettings, double sampleRate) {
+    return juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
+                                                                                      sampleRate,
+                                                                                      (chainSettings.lowCutSlope + 1) * 2);
+}
+
+inline auto makeHighCutFilter(const ChainSettings& chainSettings, double sampleRate) {
+    return juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.highCutFreq,
+                                                                                      sampleRate,
+                                                                                      (chainSettings.highCutSlope + 1) * 2);
+}
+
+template<typename ChainType, typename CoefficientType>
+void updateCutFilter(ChainType& leftLowCut,
+                     const CoefficientType& cutCoefficients,
+                     const Slope& lowCutSlope);
+
+template<int Index,typename ChainType, typename CoefficientType>
+void update(ChainType& chain, const CoefficientType& cutCoefficients);
+
 class FilterPluginAudioProcessor  : public juce::AudioProcessor
 {
 public:
@@ -69,13 +90,6 @@ public:
 private:
     MonoChain leftChain, rightChain;
     
-    template<typename ChainType, typename CoefficientType>
-    void updateCutFilter(ChainType& leftLowCut,
-                         const CoefficientType& cutCoefficients,
-                         const Slope& lowCutSlope);
-    
-    template<int Index,typename ChainType, typename CoefficientType>
-    void update(ChainType& chain, const CoefficientType& cutCoefficients);
     void updatePeakFilter(const ChainSettings& chainSettings);
     void updateLowCutFilters(const ChainSettings& chainSettings);
     void updateHighCutFilters(const ChainSettings& chainSettings);

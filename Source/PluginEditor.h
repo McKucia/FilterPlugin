@@ -11,25 +11,36 @@ struct CustomRotarySlider : juce::Slider
     }
 };
 
-class FilterPluginAudioProcessorEditor  : public juce::AudioProcessorEditor,
+struct ResponsiveCurveComponent : public juce::Component,
 juce::AudioProcessorParameter::Listener,
 juce::Timer
+{
+public:
+    ResponsiveCurveComponent(FilterPluginAudioProcessor&);
+    ~ResponsiveCurveComponent();
+    //Listener
+    void parameterValueChanged (int parameterIndex, float newValue) override;
+    void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override { };
+    void timerCallback() override;
+    void paint (juce::Graphics&) override;
+    
+private:
+    FilterPluginAudioProcessor& audioProcessor;
+    
+    MonoChain monoChain;
+    juce::Atomic<bool> parametersChanged { false };
+};
+
+class FilterPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
 {
 public:
     FilterPluginAudioProcessorEditor (FilterPluginAudioProcessor&);
     ~FilterPluginAudioProcessorEditor() override;
     void paint (juce::Graphics&) override;
     void resized() override;
-    
-    //Listener
-    void parameterValueChanged (int parameterIndex, float newValue) override;
-    void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override { };
-    void timerCallback() override;
 
 private:
     FilterPluginAudioProcessor& audioProcessor;
-    
-    juce::Atomic<bool> parametersChanged { false };
     
     CustomRotarySlider peakFreqSlider,
     peakGainSlider,
@@ -38,6 +49,8 @@ private:
     highCutFreqSlider,
     lowCutSlopeSlider,
     highCutSlopeSlider;
+    
+    ResponsiveCurveComponent responsiveCurveComponent;
     
     using APVTS = juce::AudioProcessorValueTreeState;
     using Attachment = APVTS::SliderAttachment;
@@ -52,7 +65,5 @@ private:
     
     std::vector<juce::Component*> getComps();
     
-    MonoChain monoChain;
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FilterPluginAudioProcessorEditor)
 };
