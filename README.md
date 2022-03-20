@@ -1,3 +1,3 @@
 # Filter Plugin
 ### includes peak filter, low-cut filter and high-cut filter
-![filter photo](https://github.com/McKucia/FilterPlugin/blob/master/filter.png | width=100)
+<img src="https://github.com/McKucia/FilterPlugin/blob/master/filter.png" width="300" height="200">
