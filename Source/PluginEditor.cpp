@@ -2,6 +2,77 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+void LookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
+                                    float sliderPosProportional, float rotaryStartAngle,
+                                    float rotaryEndAngle, juce::Slider& slider)
+{
+    using namespace juce;
+    
+    auto bounds = Rectangle<float>(x, y, width, height);
+    
+    g.setColour(Colours::white);
+    g.fillEllipse(bounds);
+    
+    g.setColour(Colours::seagreen);
+    g.drawEllipse(bounds, 2.0f);
+    
+    auto center = bounds.getCentre();
+    
+    Path p;
+    
+    Rectangle<float> r;
+    r.setLeft(center.getX() - 2);
+    r.setRight(center.getX() + 2);
+    r.setTop(bounds.getY());
+    r.setBottom(center.getY());
+    
+    p.addRectangle(r);
+    
+    jassert(rotaryEndAngle > rotaryStartAngle);
+    
+    auto sliderAngRad = jmap(sliderPosProportional, 0.0f, 1.0f, rotaryStartAngle, rotaryEndAngle);
+    
+    p.applyTransform(AffineTransform().rotation(sliderAngRad, center.getX(), center.getY()));
+    
+    g.fillPath(p);
+}
+
+void RotarySliderWithLabels::paint(juce::Graphics& g)
+{
+    using namespace juce;
+    
+    const auto startAngle = degreesToRadians(180.0 + 45.0);
+    const auto endAngle = degreesToRadians(180.0 - 45.0) + MathConstants<float>::twoPi;
+    
+    auto range = getRange();
+    auto bounds = getSliderBounds();
+    
+    getLookAndFeel().drawRotarySlider(g,
+                                      bounds.getX(),
+                                      bounds.getY(),
+                                      bounds.getWidth(),
+                                      bounds.getHeight(),
+                                      jmap(getValue(), range.getStart(), range.getEnd(), 0.0, 1.0),
+                                      startAngle,
+                                      endAngle,
+                                      *this);
+    
+}
+
+juce::Rectangle<int> RotarySliderWithLabels::getSliderBounds() const
+{
+    using namespace juce;
+    
+    auto bounds = getLocalBounds();
+    auto size = jmin(getWidth(), getHeight());
+    size -= getTextHeight() * 2;
+    Rectangle<int> r(size, size);
+    r.setCentre(bounds.getCentreX(), 0);
+    r.setY(2);
+    
+    return r;
+}
+
 ResponsiveCurveComponent::ResponsiveCurveComponent(FilterPluginAudioProcessor& p) : audioProcessor(p)
 {
     const auto& params = audioProcessor.getParameters();
@@ -111,6 +182,14 @@ void ResponsiveCurveComponent::paint(juce::Graphics &g)
 
 FilterPluginAudioProcessorEditor::FilterPluginAudioProcessorEditor (FilterPluginAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p),
+    peakFreqSlider(*audioProcessor.apvts.getParameter("Peak Freq"), "Hz"),
+    peakGainSlider(*audioProcessor.apvts.getParameter("Peak Gain"), "dB"),
+    peakQualitySlider(*audioProcessor.apvts.getParameter("Peak Quality"), ""),
+    lowCutFreqSlider(*audioProcessor.apvts.getParameter("LowCut Freq"), "Hz"),
+    lowCutSlopeSlider(*audioProcessor.apvts.getParameter("LowCut Slope"), "db/Oct"),
+    highCutFreqSlider(*audioProcessor.apvts.getParameter("HighCut Freq"), "Hz"),
+    highCutSlopeSlider(*audioProcessor.apvts.getParameter("HighCut Slope"), "db/Oct"),
+
     responsiveCurveComponent(audioProcessor),
     peakFreqSliderAttachment(audioProcessor.apvts, "Peak Freq", peakFreqSlider),
     peakGainSliderAttachment(audioProcessor.apvts, "Peak Gain", peakGainSlider),
@@ -124,7 +203,7 @@ FilterPluginAudioProcessorEditor::FilterPluginAudioProcessorEditor (FilterPlugin
         addAndMakeVisible(comp);
     }
     
-    setSize (600, 400);
+    setSize (300, 400);
 }
 
 FilterPluginAudioProcessorEditor::~FilterPluginAudioProcessorEditor()
